@@ -1,0 +1,25 @@
+{
+  "name": "chat-archive",
+  "description": "Local-first browser extension for revision-aware AI chat archiving and JSON export.",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": [
+    "browser-extension",
+    "chatgpt",
+    "gemini",
+    "archive",
+    "json-export",
+    "conversation-history"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "node scripts/clean.mjs",
+    "dev": "node scripts/dev.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

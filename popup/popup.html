@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Archive</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="app shell">
+    <section class="masthead panel">
+      <div class="masthead-main compact-top">
+        <div>
+          <h1>Chat Archive</h1>
+        </div>
+        <div class="masthead-actions">
+          <button id="languageToggleBtn" class="secondary ghost utility-btn language-btn">EN</button>
+          <button id="openOptionsBtn" class="secondary ghost utility-btn">View Guide</button>
+        </div>
+      </div>
+
+      <div class="summary-card">
+        <div class="summary-topline">
+          <div class="summary-chip">
+            <span id="platformLabel" class="metric-label">Platform</span>
+            <strong id="platform" class="metric-value">-</strong>
+          </div>
+          <div class="summary-chip status-chip">
+            <span id="statusLabel" class="metric-label">Job Status</span>
+            <strong id="statusText" class="status-badge" data-status="idle">Idle</strong>
+          </div>
+        </div>
+        <div class="progress-row">
+          <div class="metric-row">
+            <span id="progressLabel" class="metric-label">Progress</span>
+            <strong id="progressText" class="metric-inline">0 / 0</strong>
+          </div>
+          <progress id="progress" value="0" max="100"></progress>
+          <p id="detailText" class="detail-text">Pending: 0 | Failed: 0</p>
+        </div>
+      </div>
+
+      <div class="warning-card">
+        <strong id="complianceNoticeTitle">Authorized Use Only</strong>
+        <p id="complianceNoticeBody" class="warning-copy">Use this extension only when you are allowed to access, export, and retain the target conversation data under platform rules and applicable law.</p>
+      </div>
+    </section>
+
+    <section class="panel control-panel">
+      <div class="section-heading compact">
+        <div>
+          <h2 id="controlsTitle">Task Controls</h2>
+        </div>
+      </div>
+      <div class="action-stack">
+        <button id="startBtn" class="primary action-primary">Start Crawling</button>
+        <div class="sub-actions">
+          <button id="abortBtn" class="secondary">Abort Task</button>
+          <button id="exportJsonBtn">Export JSON</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel collection-panel">
+      <div class="section-heading compact">
+        <div>
+          <h2 id="conversationsTitle">Conversation Selection</h2>
+        </div>
+        <button id="toggleAllBtn" class="tiny secondary">Toggle All</button>
+      </div>
+      <div id="conversationList" class="list conversation-list"></div>
+    </section>
+
+    <section class="panel log-panel">
+      <div class="section-heading compact">
+        <div>
+          <h2 id="logsTitle">Recent Events</h2>
+        </div>
+        <div class="row-actions">
+          <button id="refreshLogsBtn" class="tiny secondary">Refresh</button>
+          <button id="clearLogsBtn" class="tiny ghost">Clear</button>
+        </div>
+      </div>
+      <div id="debugLogList" class="log-list"></div>
+    </section>
+  </main>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

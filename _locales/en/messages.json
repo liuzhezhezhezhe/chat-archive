@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "Chat Archive"
+  },
+  "extDescription": {
+    "message": "Archive ChatGPT and Gemini conversations locally as revision-aware JSON exports."
+  },
+  "extTitle": {
+    "message": "Chat Archive"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "Chat Archive"
+  },
+  "extDescription": {
+    "message": "将 ChatGPT 和 Gemini 会话以带修订历史的 JSON 格式归档到本地。"
+  },
+  "extTitle": {
+    "message": "Chat Archive"
+  }
+}
