@@ -5,6 +5,8 @@
 > Warning
 > Chat Archive is only for authorized, lawful archiving of conversation data that you are permitted to access, export, retain, and process. You must follow the target platform's terms, automation rules, privacy obligations, and all applicable laws and regulations.
 
+![Chat Archive social preview](./assets/social-preview.png)
+
 Chat Archive is a local-first browser extension for exporting AI chat histories as revision-aware JSON archives.
 
 It is deliberately specialized for people who need durable, inspectable conversation records instead of one-off copy/paste exports. The project focuses on structured archiving, reproducible local storage, and a stable JSON model that can be indexed, diffed, or imported into downstream tools.
@@ -35,10 +37,16 @@ It intentionally does not try to be:
 - Platform-specific: adapters are written for supported chat products rather than using a generic scraper.
 - Bilingual UI: popup and guide surfaces support English and Chinese.
 
-## Supported Platforms
+## Platform Coverage
+
+The current public build ships with a small initial adapter set.
+
+Currently supported platforms:
 
 - ChatGPT: `chatgpt.com`, `chat.openai.com`
 - Gemini: `gemini.google.com`
+
+This is a temporary first-wave support list. Additional platform support is planned as the adapter architecture expands.
 
 ## Privacy Model
 
@@ -68,7 +76,7 @@ This repository provides software only. It does not grant permission to violate 
 4. Open `chrome://extensions` or the equivalent Edge page.
 5. Enable developer mode.
 6. Load the unpacked extension from `dist/`.
-7. Open ChatGPT or Gemini in the same browser profile.
+7. Open a supported conversation page in the same browser profile.
 8. Open the extension popup and start crawling.
 9. Export JSON when the crawl reaches the conversations you want.
 
@@ -129,11 +137,11 @@ The exported JSON is a package object, not a bare conversation array.
   },
   "conversations": [
     {
-      "platform": "chatgpt",
+      "platform": "platform-a",
       "conversation_id": "...",
       "title": "...",
-      "tree_root_id": "root::chatgpt::...",
-      "current_revision_id": "rev::chatgpt::...",
+      "tree_root_id": "root::platform-a::...",
+      "current_revision_id": "rev::platform-a::...",
       "conversation_hash": "...",
       "messages": ["active snapshot"],
       "revisions": ["revision nodes"],
@@ -170,10 +178,10 @@ The core model is a conversation snapshot plus a revision tree, not a message-le
   },
   "conversations": [
     {
-      "platform": "chatgpt",
+      "platform": "platform-a",
       "conversation_id": "conv-1",
       "title": "Example Conversation",
-      "tree_root_id": "root::chatgpt::conv-1",
+      "tree_root_id": "root::platform-a::conv-1",
       "current_revision_id": "rev-B",
       "conversation_hash": "hash-B",
       "messages": [
@@ -225,7 +233,7 @@ The core model is a conversation snapshot plus a revision tree, not a message-le
 
 Contributions are most useful when they fit the project's specialization:
 
-- fixes for ChatGPT and Gemini DOM changes
+- fixes for DOM changes in currently supported platforms
 - export schema improvements that preserve backward clarity
 - crawl reliability improvements
 - adapter architecture improvements for new supported platforms

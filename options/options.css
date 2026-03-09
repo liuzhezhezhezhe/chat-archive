@@ -109,6 +109,15 @@ h1 {
   letter-spacing: -0.04em;
 }
 
+.masthead-copy .brand-lockup h1 {
+  font-family: 'Avenir Next Condensed', 'Avenir Next', 'IBM Plex Sans Condensed', 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  font-size: clamp(28px, 3.3vw, 38px);
+  font-weight: 700;
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
 h2 {
   font-size: 24px;
   letter-spacing: -0.02em;
@@ -159,7 +168,7 @@ h2 {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-content: start;
-  align-items: start;
+  align-items: center;
 }
 
 .masthead-copy {
@@ -169,10 +178,25 @@ h2 {
   min-width: 0;
 }
 
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brand-icon {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
+  border-radius: 20px;
+  box-shadow: 0 14px 32px rgba(16, 32, 51, 0.18);
+}
+
 .toolbar-actions {
   display: flex;
   justify-content: flex-end;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
 }
 
@@ -353,6 +377,16 @@ button.ghost {
   box-shadow: 0 10px 24px rgba(16, 32, 51, 0.08);
 }
 
+.toolbar-actions .utility-btn {
+  min-width: 76px;
+}
+
+.toolbar-actions .language-btn {
+  min-width: 76px;
+  min-height: 52px;
+  padding-inline: 18px;
+}
+
 @media (max-width: 1080px) {
   .app {
     width: min(100vw - 24px, 1080px);
@@ -368,12 +402,32 @@ button.ghost {
     grid-template-columns: 1fr;
   }
 
+  .masthead-copy .brand-lockup h1 {
+    font-size: clamp(24px, 4vw, 32px);
+  }
+
   .toolbar-actions {
     justify-content: flex-start;
   }
 }
 
 @media (max-width: 760px) {
+  .brand-lockup {
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+  }
+
+  .masthead-copy .brand-lockup h1 {
+    font-size: clamp(20px, 5vw, 24px);
+    letter-spacing: -0.04em;
+  }
+
   .panel {
     padding: 18px;
     border-radius: 20px;

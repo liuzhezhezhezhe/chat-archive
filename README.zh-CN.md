@@ -5,6 +5,8 @@
 > 警告
 > Chat Archive 仅适用于已获授权且合法的会话数据归档。你只能处理你有权访问、导出、保存和处理的数据，并且必须遵守目标平台的服务条款、自动化规则、隐私义务以及适用的法律法规。
 
+![Chat Archive social preview](./assets/social-preview.png)
+
 Chat Archive 是一个本地优先的浏览器扩展，用于将 AI 聊天历史导出为具备修订历史感知能力的 JSON 归档文件。
 
 它面向那些需要可长期保存、可审查、可进一步处理的会话记录的用户，而不是一次性的复制粘贴导出。这个项目重点解决结构化归档、本地可复现存储，以及可被索引、比对和下游导入的稳定 JSON 模型。
@@ -35,10 +37,16 @@ Chat Archive 不是一个通用浏览器自动化工具。
 - 平台定制化：适配器面向具体聊天产品实现，而不是做成通用抓取器。
 - 双语界面：弹窗和指南页面支持英文与中文切换。
 
-## 当前支持的平台
+## 平台覆盖范围
+
+当前公开版本只包含一组较小的初始适配器。
+
+当前支持的平台：
 
 - ChatGPT：`chatgpt.com`、`chat.openai.com`
 - Gemini：`gemini.google.com`
+
+这只是第一阶段的临时支持列表。随着适配器架构继续扩展，后续还会增加更多平台支持。
 
 ## 隐私模型
 
@@ -68,7 +76,7 @@ Chat Archive 不是一个通用浏览器自动化工具。
 4. 打开 `chrome://extensions` 或 Edge 对应的扩展页面。
 5. 启用开发者模式。
 6. 从 `dist/` 加载未打包扩展。
-7. 在同一个浏览器配置中打开 ChatGPT 或 Gemini。
+7. 在同一个浏览器配置中打开一个当前受支持的会话页面。
 8. 打开扩展弹窗并开始抓取。
 9. 当抓取到你需要的会话后，导出 JSON。
 
@@ -129,11 +137,11 @@ Chat Archive 不是一个通用浏览器自动化工具。
   },
   "conversations": [
     {
-      "platform": "chatgpt",
+      "platform": "platform-a",
       "conversation_id": "...",
       "title": "...",
-      "tree_root_id": "root::chatgpt::...",
-      "current_revision_id": "rev::chatgpt::...",
+      "tree_root_id": "root::platform-a::...",
+      "current_revision_id": "rev::platform-a::...",
       "conversation_hash": "...",
       "messages": ["active snapshot"],
       "revisions": ["revision nodes"],
@@ -170,10 +178,10 @@ Chat Archive 不是一个通用浏览器自动化工具。
   },
   "conversations": [
     {
-      "platform": "chatgpt",
+      "platform": "platform-a",
       "conversation_id": "conv-1",
       "title": "Example Conversation",
-      "tree_root_id": "root::chatgpt::conv-1",
+      "tree_root_id": "root::platform-a::conv-1",
       "current_revision_id": "rev-B",
       "conversation_hash": "hash-B",
       "messages": [
@@ -225,7 +233,7 @@ Chat Archive 不是一个通用浏览器自动化工具。
 
 最有价值的贡献通常集中在这些方面：
 
-- 修复 ChatGPT 和 Gemini 的 DOM 变化
+- 修复当前已支持平台的 DOM 变化
 - 在不破坏兼容性的前提下改进导出 schema
 - 提升抓取可靠性
 - 优化新增平台时的适配器架构

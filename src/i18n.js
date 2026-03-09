@@ -49,7 +49,7 @@ const COPY = {
       controlsTitle: 'Task Controls',
       conversationsTitle: 'Conversation Selection',
       logsTitle: 'Recent Events',
-      viewGuide: 'View Guide',
+      viewGuide: 'Guide',
       abort: 'Abort Task',
       exportJson: 'Export JSON',
       toggleAll: 'Toggle All',
@@ -74,7 +74,7 @@ const COPY = {
     },
     options: {
       title: 'Chat Archive Export Guide',
-      description: 'Chat Archive currently supports ChatGPT and Gemini and is intended for authorized, policy-compliant archival use.',
+      description: 'Chat Archive currently supports ChatGPT and Gemini, with more platforms planned over time for authorized, policy-compliant archival use.',
       complianceLead: {
         title: 'Authorized Use Only',
         body: 'Use Chat Archive only when you are authorized to capture and retain the relevant conversation data under platform rules and applicable law.'
@@ -124,7 +124,7 @@ const COPY = {
   },
   "conversations": [
     {
-      "platform": "chatgpt",
+      "platform": "platform-a",
       "conversation_id": "...",
       "messages": [],
       "revisions": []
@@ -133,16 +133,16 @@ const COPY = {
 }`
         },
         variants: {
-          title: 'Supported Platforms',
-          description: 'The current build targets these platform-specific adapters.',
+          title: 'Platform Coverage',
+          description: 'The current build supports ChatGPT and Gemini today, with broader platform support planned.',
           cards: [
             {
               title: 'ChatGPT',
-              body: 'Supports chatgpt.com and chat.openai.com.'
+              body: 'Supports chatgpt.com and chat.openai.com in the current public build.'
             },
             {
               title: 'Gemini',
-              body: 'Supports gemini.google.com.'
+              body: 'Supports gemini.google.com in the current public build.'
             }
           ]
         },
@@ -152,7 +152,7 @@ const COPY = {
           cards: [
             {
               title: '1. Open a supported chat page',
-              body: 'Sign in first, then navigate to ChatGPT or Gemini before opening the popup.'
+              body: 'Sign in first, then navigate to a currently supported conversation page before opening the popup.'
             },
             {
               title: '2. Start crawling from the popup',
@@ -194,7 +194,7 @@ const COPY = {
       controlsTitle: '任务控制',
       conversationsTitle: '会话选择',
       logsTitle: '最近事件',
-      viewGuide: '查看指南',
+      viewGuide: '指南',
       abort: '中止任务',
       exportJson: '导出 JSON',
       toggleAll: '全选/全不选',
@@ -219,7 +219,7 @@ const COPY = {
     },
     options: {
       title: 'Chat Archive 导出指南',
-      description: 'Chat Archive 当前支持 ChatGPT 和 Gemini，并仅面向已获授权且符合平台规则的归档用途。',
+      description: 'Chat Archive 当前支持 ChatGPT 和 Gemini，并会逐步扩展到更多平台，仅面向已获授权且符合平台规则的归档用途。',
       complianceLead: {
         title: '仅限授权使用',
         body: '仅当你有权依据平台规则和适用法律抓取并保存相关会话数据时，才应使用 Chat Archive。'
@@ -269,7 +269,7 @@ const COPY = {
   },
   "conversations": [
     {
-      "platform": "chatgpt",
+      "platform": "platform-a",
       "conversation_id": "...",
       "messages": [],
       "revisions": []
@@ -278,16 +278,16 @@ const COPY = {
 }`
         },
         variants: {
-          title: '支持的平台',
-          description: '当前版本面向以下平台适配器。',
+          title: '平台覆盖范围',
+          description: '当前版本支持 ChatGPT 和 Gemini，后续会继续扩展更多平台支持。',
           cards: [
             {
               title: 'ChatGPT',
-              body: '支持 chatgpt.com 和 chat.openai.com。'
+              body: '当前公开版本支持 chatgpt.com 和 chat.openai.com。'
             },
             {
               title: 'Gemini',
-              body: '支持 gemini.google.com。'
+              body: '当前公开版本支持 gemini.google.com。'
             }
           ]
         },
@@ -297,7 +297,7 @@ const COPY = {
           cards: [
             {
               title: '1. 打开支持的聊天页面',
-              body: '先登录，然后进入 ChatGPT 或 Gemini 页面，再打开扩展弹窗。'
+              body: '先登录，然后进入一个当前受支持的会话页面，再打开扩展弹窗。'
             },
             {
               title: '2. 在弹窗中开始抓取',

@@ -3,7 +3,7 @@
     "message": "Chat Archive"
   },
   "extDescription": {
-    "message": "将 ChatGPT 和 Gemini 会话以带修订历史的 JSON 格式归档到本地。"
+    "message": "将受支持的 AI 聊天会话以带修订历史的 JSON 格式归档到本地。当前支持 ChatGPT 和 Gemini。"
   },
   "extTitle": {
     "message": "Chat Archive"

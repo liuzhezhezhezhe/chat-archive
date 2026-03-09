@@ -3,7 +3,7 @@
     "message": "Chat Archive"
   },
   "extDescription": {
-    "message": "Archive ChatGPT and Gemini conversations locally as revision-aware JSON exports."
+    "message": "Archive supported AI chat conversations locally as revision-aware JSON exports. Currently supports ChatGPT and Gemini."
   },
   "extTitle": {
     "message": "Chat Archive"

@@ -101,6 +101,38 @@ h1 {
   letter-spacing: -0.03em;
 }
 
+.masthead .masthead-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.masthead .brand-lockup {
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.masthead .brand-lockup h1 {
+  font-family: 'Avenir Next Condensed', 'Avenir Next', 'IBM Plex Sans Condensed', 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.masthead-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
 h2 {
   font-size: 14px;
   line-height: 1.1;
@@ -154,6 +186,21 @@ h2 {
 
 .compact-top {
   align-items: center;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex: 0 0 auto;
+  box-shadow: 0 12px 22px rgba(15, 43, 84, 0.18);
 }
 
 .summary-card {
@@ -322,6 +369,16 @@ button.ghost {
 .utility-btn {
   min-width: 96px;
   font-size: 12px;
+}
+
+.masthead-actions .utility-btn {
+  min-width: auto;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.masthead-actions .language-btn {
+  min-width: 54px;
 }
 
 .action-primary {

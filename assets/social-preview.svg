@@ -1,0 +1,72 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<defs>
+		<linearGradient id="bg" x1="132" y1="76" x2="1150" y2="564" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#F7FBFF"/>
+			<stop offset="0.5" stop-color="#E8F1FB"/>
+			<stop offset="1" stop-color="#DDEAF7"/>
+		</linearGradient>
+		<linearGradient id="hero" x1="278" y1="118" x2="950" y2="536" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#143A7B"/>
+			<stop offset="0.55" stop-color="#175BAF"/>
+			<stop offset="1" stop-color="#1FA39A"/>
+		</linearGradient>
+		<linearGradient id="panel" x1="362" y1="164" x2="770" y2="432" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#F7FBFF" stop-opacity="0.96"/>
+			<stop offset="1" stop-color="#D9E7F8" stop-opacity="0.9"/>
+		</linearGradient>
+		<filter id="blur" x="0" y="0" width="1280" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+			<feGaussianBlur stdDeviation="42"/>
+		</filter>
+		<filter id="shadow" x="192" y="80" width="668" height="476" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+			<feOffset dy="24"/>
+			<feGaussianBlur stdDeviation="24"/>
+			<feColorMatrix type="matrix" values="0 0 0 0 0.0392157 0 0 0 0 0.113725 0 0 0 0 0.203922 0 0 0 0.22 0"/>
+			<feBlend in2="SourceGraphic" result="shape"/>
+		</filter>
+		<filter id="tileShadow" x="676" y="92" width="400" height="316" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+			<feOffset dy="20"/>
+			<feGaussianBlur stdDeviation="18"/>
+			<feColorMatrix type="matrix" values="0 0 0 0 0.0431373 0 0 0 0 0.12549 0 0 0 0 0.227451 0 0 0 0.18 0"/>
+			<feBlend in2="SourceGraphic" result="shape"/>
+		</filter>
+	</defs>
+
+	<rect width="1280" height="640" rx="40" fill="url(#bg)"/>
+	<g opacity="0.9" filter="url(#blur)">
+		<circle cx="1022" cy="162" r="132" fill="#8ED6FF"/>
+		<circle cx="214" cy="586" r="140" fill="#98F2D4"/>
+		<circle cx="1180" cy="514" r="118" fill="#A6B8FF"/>
+	</g>
+
+	<g filter="url(#shadow)">
+		<rect x="240" y="126" width="572" height="380" rx="40" fill="url(#hero)"/>
+		<rect x="294" y="180" width="284" height="284" rx="68" fill="#F2F8FF" fill-opacity="0.14"/>
+		<rect x="340" y="218" width="256" height="256" rx="56" fill="#EEF6FF" fill-opacity="0.14"/>
+		<path d="M462 262C422.235 262 390 294.235 390 334V390C390 429.765 422.235 462 462 462H526C546.216 462 565.445 453.508 579.068 438.601L627.408 385.712C639.131 372.882 645.632 356.116 645.632 338.736V334C645.632 294.235 613.397 262 573.632 262H462Z" fill="#F7FBFF" fill-opacity="0.96"/>
+		<rect x="438" y="314" width="170" height="22" rx="11" fill="#1C5ACE"/>
+		<rect x="438" y="354" width="138" height="22" rx="11" fill="#23A69A"/>
+		<rect x="438" y="394" width="102" height="22" rx="11" fill="#A5C6FF"/>
+	</g>
+
+	<g filter="url(#tileShadow)">
+		<rect x="724" y="128" width="316" height="232" rx="34" fill="url(#panel)"/>
+		<rect x="760" y="168" width="104" height="28" rx="14" fill="#D8E7FA"/>
+		<rect x="760" y="220" width="244" height="18" rx="9" fill="#A9C8F4"/>
+		<rect x="760" y="254" width="214" height="18" rx="9" fill="#C1D7F7"/>
+		<rect x="760" y="304" width="110" height="22" rx="11" fill="#1F61D4"/>
+		<rect x="884" y="304" width="78" height="22" rx="11" fill="#1FB0A0"/>
+	</g>
+
+	<text x="662" y="440" fill="#0F223A" font-family="Avenir Next, IBM Plex Sans, Segoe UI, sans-serif" font-size="68" font-weight="700" letter-spacing="-2.4">Chat Archive</text>
+	<text x="662" y="488" fill="#49627F" font-family="Avenir Next, IBM Plex Sans, Segoe UI, sans-serif" font-size="24" font-weight="500">Local-first browser extension</text>
+	<text x="662" y="522" fill="#49627F" font-family="Avenir Next, IBM Plex Sans, Segoe UI, sans-serif" font-size="24" font-weight="500">for revision-aware conversation exports</text>
+
+	<g opacity="0.96">
+		<rect x="662" y="550" width="164" height="38" rx="19" fill="#F7FBFF" stroke="#B9D1F5" stroke-width="2"/>
+		<rect x="842" y="550" width="214" height="38" rx="19" fill="#F4FCF8" stroke="#B9E5D6" stroke-width="2"/>
+		<rect x="1072" y="550" width="164" height="38" rx="19" fill="#F8FAFD" stroke="#CBD5E3" stroke-width="2"/>
+		<text x="744" y="576" text-anchor="middle" fill="#17458F" font-family="Avenir Next, IBM Plex Sans, Segoe UI, sans-serif" font-size="18" font-weight="700">Local-first</text>
+		<text x="949" y="576" text-anchor="middle" fill="#0E6A51" font-family="Avenir Next, IBM Plex Sans, Segoe UI, sans-serif" font-size="18" font-weight="700">Multi-platform</text>
+		<text x="1154" y="576" text-anchor="middle" fill="#33465F" font-family="Avenir Next, IBM Plex Sans, Segoe UI, sans-serif" font-size="18" font-weight="700">JSON export</text>
+	</g>
+</svg>
