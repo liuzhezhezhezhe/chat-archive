@@ -317,22 +317,34 @@ async function scrapeActiveConversation(adapter, fallbackConversationId, fallbac
 }
 
 function inspectSelectors(adapter) {
-  const cfg = adapter.getDebugConfig ? adapter.getDebugConfig() : {};
+  const debugConfig = adapter.getDebugConfig ? adapter.getDebugConfig() : {};
+  const cfg = debugConfig?.effective || debugConfig || {};
   const refs = uniqueConversationRefs(adapter.getConversationRefs());
   const messages = adapter.getMessages().slice(0, 5).map((msg) => ({
     role: msg.role,
     content: trunc(msg.content, 80)
   }));
 
+  const countMatches = (selector) => {
+    if (!selector) {
+      return 0;
+    }
+    try {
+      return document.querySelectorAll(selector).length;
+    } catch {
+      return 0;
+    }
+  };
+
   return {
     platform: adapter.platform,
-    config: cfg,
+    config: debugConfig,
     counts: {
-      conversationLinks: cfg.conversationLinkSelector ? document.querySelectorAll(cfg.conversationLinkSelector).length : 0,
+      conversationLinks: countMatches(cfg.conversationLinkSelector),
       listContainerFound: Boolean(queryOptional(cfg.listContainerSelector)),
       readySelectorFound: Boolean(queryOptional(cfg.readySelector)),
-      messageNodes: cfg.messageSelector ? document.querySelectorAll(cfg.messageSelector).length : 0,
-      userMessageNodes: cfg.userMessageSelector ? document.querySelectorAll(cfg.userMessageSelector).length : 0
+      messageNodes: countMatches(cfg.messageSelector),
+      userMessageNodes: countMatches(cfg.userMessageSelector)
     },
     activeConversationId: adapter.getActiveConversationId(),
     conversationPreview: refs.slice(0, 5),

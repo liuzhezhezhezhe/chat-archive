@@ -19,7 +19,7 @@
     },
     gemini: {
       conversationLinkSelector: 'a[data-test-id="conversation"][href*="/app/"]',
-      listContainerSelector: '.conversations-container, #conversations-list-0, nav, aside',
+      listContainerSelector: '[data-test-id="overflow-container"]',
       nextPageSelector: '',
       endOfListSelector: '',
       readySelector: '.conversation-container model-response structured-content-container .markdown, .conversation-container model-response .markdown, model-response',

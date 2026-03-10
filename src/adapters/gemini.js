@@ -3,7 +3,7 @@ const { createAdapter, collectConversationRefs, normalizePlainText, serializeDom
 
 const GEMINI_DEFAULT_CFG = {
   conversationLinkSelector: 'a[data-test-id="conversation"][href*="/app/"]',
-  listContainerSelector: '.conversations-container, #conversations-list-0, nav, aside',
+  listContainerSelector: '[data-test-id="overflow-container"]',
   readySelector: '.conversation-container model-response structured-content-container .markdown, .conversation-container model-response .markdown, model-response',
   messageSelector: '.conversation-container',
   messageContainerSelector: 'main',
@@ -17,6 +17,10 @@ const GEMINI_SELECTOR_CANDIDATES = {
     'a[href*="/app/"]'
   ],
   listContainerSelector: [
+    '[data-test-id="overflow-container"]',
+    'infinite-scroller',
+    '.chat-history',
+    'conversations-list[data-test-id="all-conversations"]',
     '.conversations-container',
     '#conversations-list-0',
     'nav',
@@ -64,9 +68,137 @@ function queryExists(selector) {
   }
 }
 
+function splitSelectorList(selector) {
+  const value = String(selector || '').trim();
+  if (!value) {
+    return [];
+  }
+
+  const parts = [];
+  let current = '';
+  let quote = '';
+  let escaped = false;
+  let squareDepth = 0;
+  let roundDepth = 0;
+  let braceDepth = 0;
+
+  for (const char of value) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      current += char;
+      escaped = true;
+      continue;
+    }
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === '[') {
+      squareDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ']') {
+      squareDepth = Math.max(0, squareDepth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === '(') {
+      roundDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ')') {
+      roundDepth = Math.max(0, roundDepth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === '{') {
+      braceDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === '}') {
+      braceDepth = Math.max(0, braceDepth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === ',' && squareDepth === 0 && roundDepth === 0 && braceDepth === 0) {
+      const nextPart = current.trim();
+      if (nextPart) {
+        parts.push(nextPart);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const lastPart = current.trim();
+  if (lastPart) {
+    parts.push(lastPart);
+  }
+
+  return parts;
+}
+
+function uniqueSelectors(selectors) {
+  return Array.from(new Set((selectors || []).filter(Boolean)));
+}
+
+function isScrollable(node) {
+  if (!node || node === document.body || node === document.documentElement) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(node);
+  const overflowY = style?.overflowY || '';
+  if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+    return true;
+  }
+
+  return (node.scrollHeight || 0) > (node.clientHeight || 0) + 1;
+}
+
+function findScrollableAncestor(node) {
+  let current = node?.parentElement || null;
+  while (current && current !== document.body && current !== document.documentElement) {
+    if (isScrollable(current)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
 function resolveSelector(configuredSelector, candidates, matcher) {
-  if (configuredSelector && matcher(configuredSelector)) {
-    return configuredSelector;
+  for (const selector of splitSelectorList(configuredSelector)) {
+    if (matcher(selector)) {
+      return selector;
+    }
   }
 
   for (const selector of candidates) {
@@ -78,6 +210,55 @@ function resolveSelector(configuredSelector, candidates, matcher) {
   return configuredSelector || candidates[0] || '';
 }
 
+function scoreListContainerSelector(selector, itemSelector) {
+  const containers = queryNodes(selector);
+  if (!containers.length) {
+    return 0;
+  }
+
+  const links = queryNodes(itemSelector);
+  let bestScore = 0;
+
+  for (const container of containers) {
+    const containsConversation = links.some((link) => container === link || container.contains(link));
+    if (!containsConversation) {
+      continue;
+    }
+
+    if (isScrollable(container)) {
+      bestScore = Math.max(bestScore, 3);
+      continue;
+    }
+
+    if (findScrollableAncestor(container)) {
+      bestScore = Math.max(bestScore, 2);
+      continue;
+    }
+
+    bestScore = Math.max(bestScore, 1);
+  }
+
+  return bestScore;
+}
+
+function resolveListContainerSelector(configuredSelector, candidates, itemSelector) {
+  let bestSelector = '';
+  let bestScore = 0;
+
+  for (const selector of uniqueSelectors([
+    ...splitSelectorList(configuredSelector),
+    ...candidates
+  ])) {
+    const score = scoreListContainerSelector(selector, itemSelector);
+    if (score > bestScore) {
+      bestSelector = selector;
+      bestScore = score;
+    }
+  }
+
+  return bestSelector || configuredSelector || candidates[0] || '';
+}
+
 function isValidConversationLinkSelector(selector) {
   return queryNodes(selector).some((node) => {
     const href = node.getAttribute?.('href') || '';
@@ -86,9 +267,7 @@ function isValidConversationLinkSelector(selector) {
 }
 
 function isValidListContainerSelector(selector, itemSelector) {
-  const containers = queryNodes(selector);
-  const links = queryNodes(itemSelector);
-  return containers.some((container) => links.some((link) => container === link || container.contains(link)));
+  return scoreListContainerSelector(selector, itemSelector) > 0;
 }
 
 function isValidReadySelector(selector) {
@@ -129,10 +308,10 @@ function getCfg() {
   return {
     ...cfg,
     conversationLinkSelector,
-    listContainerSelector: resolveSelector(
+    listContainerSelector: resolveListContainerSelector(
       cfg.listContainerSelector,
       GEMINI_SELECTOR_CANDIDATES.listContainerSelector,
-      (selector) => isValidListContainerSelector(selector, conversationLinkSelector)
+      conversationLinkSelector
     ),
     readySelector: resolveSelector(
       cfg.readySelector,
