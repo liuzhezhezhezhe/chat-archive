@@ -25,6 +25,8 @@ let currentPlatform = null;
 let currentState = null;
 let currentLogs = [];
 let currentConversations = [];
+let pinnedDetailMessage = null;
+let pinnedStatusValue = null;
 
 function conversationSelectionKey(platform, conversationId) {
   return `${platform || 'unknown'}::${conversationId || 'unknown'}`;
@@ -42,11 +44,14 @@ async function send(action, payload = {}) {
 }
 
 function selectedConversationRefs() {
+  const conversationMap = new Map((currentConversations || []).map((conv) => [conversationSelectionKey(conv.platform, conv.conversation_id), conv]));
   return Array.from(selectedConversationKeys).map((key) => {
     const separatorIndex = key.indexOf('::');
+    const conversation = conversationMap.get(key);
     return {
       platform: key.slice(0, separatorIndex),
-      conversation_id: key.slice(separatorIndex + 2)
+      conversation_id: key.slice(separatorIndex + 2),
+      title: conversation?.title || key.slice(separatorIndex + 2)
     };
   });
 }
@@ -80,7 +85,7 @@ async function detectPlatform(tabId) {
 }
 
 function setButtonsEnabled(platformSupported) {
-  for (const id of ['startBtn', 'abortBtn']) {
+  for (const id of ['startBtn', 'updateSelectedBtn', 'abortBtn']) {
     document.getElementById(id).disabled = !platformSupported;
   }
   document.getElementById('exportJsonBtn').disabled = false;
@@ -200,12 +205,74 @@ function updateStatus(state) {
     ? t(currentLanguage, 'popup.startRunning')
     : t(currentLanguage, 'popup.start');
   document.getElementById('startBtn').disabled = running;
+  document.getElementById('updateSelectedBtn').disabled = running || !currentPlatform;
+
+  if (pinnedDetailMessage) {
+    document.getElementById('detailText').textContent = pinnedDetailMessage;
+    if (pinnedStatusValue) {
+      document.getElementById('statusText').textContent = formatStatusLabel(currentLanguage, pinnedStatusValue);
+      document.getElementById('statusText').dataset.status = pinnedStatusValue;
+    }
+  }
 }
 
 function setTransientError(message) {
-  document.getElementById('statusText').textContent = formatStatusLabel(currentLanguage, 'error');
-  document.getElementById('statusText').dataset.status = 'error';
-  document.getElementById('detailText').textContent = trunc(localizeError(currentLanguage, message || t(currentLanguage, 'popup.unknownError')), 120);
+  pinnedStatusValue = 'error';
+  pinnedDetailMessage = trunc(localizeError(currentLanguage, message || t(currentLanguage, 'popup.unknownError')), 220);
+  updateStatus(currentState);
+}
+
+function clearPinnedDetail() {
+  pinnedDetailMessage = null;
+  pinnedStatusValue = null;
+}
+
+function hasSelectionSummaryDetails(summary) {
+  if (!summary) {
+    return false;
+  }
+  return Boolean((summary.selectedOnOtherPlatforms || []).length || (summary.missingOnCurrentPlatform || []).length);
+}
+
+function formatSelectionSummaryList(items) {
+  return (items || []).map((item) => `- ${item.title || item.conversation_id}`).join('\n');
+}
+
+function buildSelectionSummaryMessage(summary) {
+  if (!summary) {
+    return '';
+  }
+
+  const lines = [
+    t(currentLanguage, 'popup.selectionSummaryHeader', {
+      platform: formatPlatformLabel(currentLanguage, summary.platform),
+      matched: String((summary.matchedOnCurrentPlatform || []).length)
+    })
+  ];
+
+  if (summary.selectedOnOtherPlatforms?.length) {
+    lines.push('');
+    lines.push(t(currentLanguage, 'popup.selectionOtherPlatforms', {
+      count: String(summary.selectedOnOtherPlatforms.length)
+    }));
+    lines.push(formatSelectionSummaryList(summary.selectedOnOtherPlatforms));
+  }
+
+  if (summary.missingOnCurrentPlatform?.length) {
+    lines.push('');
+    lines.push(t(currentLanguage, 'popup.selectionMissingCurrent', {
+      count: String(summary.missingOnCurrentPlatform.length)
+    }));
+    lines.push(formatSelectionSummaryList(summary.missingOnCurrentPlatform));
+  }
+
+  return lines.filter(Boolean).join('\n');
+}
+
+function setPinnedNotice(message, statusValue = null) {
+  pinnedDetailMessage = message ? trunc(message, 220) : null;
+  pinnedStatusValue = statusValue;
+  updateStatus(currentState);
 }
 
 function applyStaticCopy() {
@@ -218,6 +285,7 @@ function applyStaticCopy() {
   document.getElementById('conversationsTitle').textContent = t(currentLanguage, 'popup.conversationsTitle');
   document.getElementById('logsTitle').textContent = t(currentLanguage, 'popup.logsTitle');
   document.getElementById('openOptionsBtn').textContent = t(currentLanguage, 'popup.viewGuide');
+  document.getElementById('updateSelectedBtn').textContent = t(currentLanguage, 'popup.updateSelected');
   document.getElementById('abortBtn').textContent = t(currentLanguage, 'popup.abort');
   document.getElementById('exportJsonBtn').textContent = t(currentLanguage, 'popup.exportJson');
   document.getElementById('toggleAllBtn').textContent = t(currentLanguage, 'popup.toggleAll');
@@ -285,10 +353,38 @@ async function boot() {
   });
 
   document.getElementById('startBtn').addEventListener('click', async () => {
+    clearPinnedDetail();
     const result = await send('START_CRAWL', { tabId });
     if (!result?.ok) {
       setTransientError(result?.error || t(currentLanguage, 'popup.startFailed'));
       return;
+    }
+    await refresh(tabId, currentPlatform);
+  });
+
+  document.getElementById('updateSelectedBtn').addEventListener('click', async () => {
+    clearPinnedDetail();
+    const conversationRefs = selectedConversationRefs();
+    if (!conversationRefs.length) {
+      setTransientError(t(currentLanguage, 'popup.updateSelectedEmpty'));
+      return;
+    }
+
+    const result = await send('START_CRAWL', {
+      tabId,
+      scope: 'selected',
+      conversationRefs
+    });
+    if (!result?.ok) {
+      const summaryMessage = hasSelectionSummaryDetails(result?.selectionSummary)
+        ? buildSelectionSummaryMessage(result.selectionSummary)
+        : '';
+      setTransientError(summaryMessage || result?.error || t(currentLanguage, 'popup.updateSelectedFailed'));
+      return;
+    }
+
+    if (hasSelectionSummaryDetails(result?.selectionSummary)) {
+      setPinnedNotice(buildSelectionSummaryMessage(result.selectionSummary));
     }
     await refresh(tabId, currentPlatform);
   });
@@ -303,6 +399,7 @@ async function boot() {
   });
 
   document.getElementById('exportJsonBtn').addEventListener('click', async () => {
+    clearPinnedDetail();
     const refs = selectedConversationRefs();
     const result = await send('EXPORT_JSON', {
       platform: null,

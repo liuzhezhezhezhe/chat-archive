@@ -50,6 +50,7 @@ const COPY = {
       conversationsTitle: 'Conversation Selection',
       logsTitle: 'Recent Events',
       viewGuide: 'Guide',
+      updateSelected: 'Update Selected',
       abort: 'Abort Task',
       exportJson: 'Export JSON',
       toggleAll: 'Toggle All',
@@ -69,6 +70,11 @@ const COPY = {
       unsupportedPage: 'Unsupported page',
       unknownError: 'Unknown error',
       startFailed: 'Failed to start crawling.',
+      updateSelectedEmpty: 'Select at least one conversation first.',
+      updateSelectedFailed: 'Failed to update the selected conversations.',
+      selectionSummaryHeader: 'Will update {matched} selected conversation(s) on {platform}.',
+      selectionOtherPlatforms: '{count} selected item(s) belong to other platforms. Update them from the corresponding platform page:',
+      selectionMissingCurrent: '{count} selected item(s) were not found in the current platform list:',
       exportFailed: 'Failed to export JSON.',
       complianceTitle: 'Authorized Use Only',
       complianceBody: 'Use this extension only when you are allowed to access, export, and retain the target conversation data under platform rules and applicable law.'
@@ -196,6 +202,7 @@ const COPY = {
       conversationsTitle: '会话选择',
       logsTitle: '最近事件',
       viewGuide: '指南',
+      updateSelected: '更新所选',
       abort: '中止任务',
       exportJson: '导出 JSON',
       toggleAll: '全选/全不选',
@@ -215,6 +222,11 @@ const COPY = {
       unsupportedPage: '不支持的页面',
       unknownError: '未知错误',
       startFailed: '启动抓取失败。',
+      updateSelectedEmpty: '请先勾选至少一个会话。',
+      updateSelectedFailed: '更新所选会话失败。',
+      selectionSummaryHeader: '当前将在 {platform} 上更新 {matched} 个已选会话。',
+      selectionOtherPlatforms: '有 {count} 个已选项属于其他平台，请切换到对应平台页面后再操作：',
+      selectionMissingCurrent: '有 {count} 个已选项未在当前平台列表中找到：',
       exportFailed: '导出 JSON 失败。',
       complianceTitle: '仅限授权使用',
       complianceBody: '仅当你有权依据平台规则和适用法律访问、导出并保存相关会话数据时，才可使用此扩展。'
@@ -565,9 +577,16 @@ export async function setLanguage(language) {
   return normalized;
 }
 
-export function t(language, key) {
+export function t(language, key, params = null) {
   const normalized = normalizeLanguage(language);
-  return deepGet(COPY[normalized], key) ?? deepGet(COPY.en, key) ?? key;
+  const template = deepGet(COPY[normalized], key) ?? deepGet(COPY.en, key) ?? key;
+  if (!params || typeof template !== 'string') {
+    return template;
+  }
+
+  return template.replace(/\{(\w+)\}/g, (_, token) => {
+    return Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : `{${token}}`;
+  });
 }
 
 export function getOptionsCopy(language) {

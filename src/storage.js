@@ -91,6 +91,24 @@ function findRevisionByHash(revisions, conversationHash) {
   return (revisions || []).find((revision) => revision.conversation_hash === conversationHash) || null;
 }
 
+function areMessageSequencesEqual(previousMessages, nextMessages) {
+  if (!Array.isArray(previousMessages) || !Array.isArray(nextMessages)) {
+    return false;
+  }
+
+  if (previousMessages.length !== nextMessages.length) {
+    return false;
+  }
+
+  for (let index = 0; index < previousMessages.length; index += 1) {
+    if (previousMessages[index]?.hash !== nextMessages[index]?.hash) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function findBestParentRevision(revisions, incomingMessages) {
   let bestRevision = null;
   let bestPrefixLength = 0;
@@ -206,6 +224,12 @@ export async function upsertConversation(conversation) {
   const incomingHash = await buildConversationHash(incomingMessages);
   const currentRevision = getCurrentRevision(existing);
   const currentMessages = currentRevision?.messages || existing.messages || [];
+  const currentSnapshotHash = currentRevision?.conversation_hash
+    || existing.conversation_hash
+    || await buildConversationHash(currentMessages);
+  const matchesActiveSnapshot = Boolean(
+    incomingHash && (incomingHash === currentSnapshotHash || areMessageSequencesEqual(currentMessages, incomingMessages))
+  );
   const checkedAt = nowSeconds();
 
   let nextRecord = {
@@ -249,12 +273,13 @@ export async function upsertConversation(conversation) {
 
   const exactRevision = incomingHash ? findRevisionByHash(existing.revisions, incomingHash) : null;
 
-  if (incomingHash && currentRevision?.conversation_hash === incomingHash) {
+  if (matchesActiveSnapshot) {
     nextRecord = {
       ...nextRecord,
       messages: currentMessages,
       message_count: currentMessages.length,
-      conversation_hash: incomingHash
+      conversation_hash: currentSnapshotHash || incomingHash,
+      current_revision_id: currentRevision?.revision_id || existing.current_revision_id || null
     };
   } else if (exactRevision) {
     nextRecord = {

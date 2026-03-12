@@ -32,6 +32,8 @@ export function createEmptyJob(platform) {
   return {
     platform,
     targetTabId: null,
+    crawlScope: 'full',
+    selectedConversationIds: [],
     status: 'idle',
     running: false,
     abortRequested: false,
@@ -75,6 +77,8 @@ export async function saveJob(job) {
     ...createEmptyJob(job.platform),
     ...job,
     targetTabId: typeof job.targetTabId === 'number' ? job.targetTabId : null,
+    crawlScope: job.crawlScope === 'selected' ? 'selected' : 'full',
+    selectedConversationIds: uniqueIds(job.selectedConversationIds),
     updatedAt: nowSeconds(),
     done: (job.completedConversationIds || []).length,
     total: job.total || (job.discoveredConversationRefs || []).length,
@@ -105,11 +109,42 @@ export function rebuildJobFromList(platform, previousJob, freshRefs) {
   return {
     ...base,
     platform,
+    crawlScope: 'full',
+    selectedConversationIds: [],
     discoveredConversationRefs,
     pendingConversationIds,
     completedConversationIds: Array.from(completedSet),
     failedConversationIds: Array.from(failedSet).filter((id) => !completedSet.has(id)),
     total: discoveredConversationRefs.length,
+    done: (base.completedConversationIds || []).length,
+    lastError: null
+  };
+}
+
+export function rebuildSelectedJobFromList(platform, previousJob, freshRefs, selectedRefs) {
+  const base = previousJob || createEmptyJob(platform);
+  const normalizedSelectedRefs = mergeConversationRefs([], selectedRefs);
+  const selectedConversationIds = normalizedSelectedRefs
+    .map((ref) => ref.conversation_id)
+    .filter(Boolean);
+  const selectedIdSet = new Set(selectedConversationIds);
+  const discoveredConversationRefs = mergeConversationRefs(normalizedSelectedRefs, freshRefs)
+    .filter((ref) => selectedIdSet.has(ref.conversation_id));
+  const completedSet = new Set(base.completedConversationIds || []);
+  const failedSet = new Set(base.failedConversationIds || []);
+  const pendingConversationIds = uniqueIds(selectedConversationIds)
+    .filter((id) => !completedSet.has(id));
+
+  return {
+    ...base,
+    platform,
+    crawlScope: 'selected',
+    selectedConversationIds,
+    discoveredConversationRefs,
+    pendingConversationIds,
+    completedConversationIds: Array.from(completedSet),
+    failedConversationIds: Array.from(failedSet).filter((id) => !completedSet.has(id)),
+    total: selectedConversationIds.length,
     done: (base.completedConversationIds || []).length,
     lastError: null
   };

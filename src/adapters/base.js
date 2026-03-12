@@ -426,6 +426,14 @@ async function loadMoreConversationListDefault(getCfg) {
 
 async function openConversationByIdDefault({ getCfg, normalizeConversationIdFromHref, conversationId, timeoutMs = 15000 }) {
   const cfg = resolveCfg(getCfg);
+  const activeConversationId = typeof normalizeConversationIdFromHref === 'function'
+    ? normalizeConversationIdFromHref(location.pathname)
+    : null;
+
+  if (activeConversationId === conversationId) {
+    return waitForSelector(cfg.readySelector, timeoutMs);
+  }
+
   const target = Array.from(document.querySelectorAll(cfg.conversationLinkSelector || '')).find((anchor) => {
     const href = anchor.getAttribute('href') || '';
     return normalizeConversationIdFromHref(href) === conversationId;
@@ -438,6 +446,22 @@ async function openConversationByIdDefault({ getCfg, normalizeConversationIdFrom
   await bringConversationTargetIntoView(target, cfg);
   await clickLikeUser(target);
   return waitForSelector(cfg.readySelector, timeoutMs);
+}
+
+function openConversationByHrefDefault(conversationHref) {
+  if (!conversationHref) {
+    return false;
+  }
+
+  const targetUrl = new URL(conversationHref, location.origin);
+  if (targetUrl.href === location.href) {
+    return true;
+  }
+
+  setTimeout(() => {
+    location.assign(targetUrl.href);
+  }, 0);
+  return true;
 }
 
 async function waitConversationReadyDefault(getCfg, timeoutMs = 15000) {
@@ -526,6 +550,7 @@ function createAdapter(spec) {
       conversationId,
       timeoutMs: spec.readyTimeoutMs || 15000
     })),
+    openConversationByHref: spec.openConversationByHref || openConversationByHrefDefault,
     waitConversationReady: spec.waitConversationReady || (() => waitConversationReadyDefault(getCfg, spec.readyTimeoutMs || 15000)),
     loadAllMessages: spec.loadAllMessages || (() => loadAllMessagesDefault(getCfg)),
     getMessages: spec.getMessages,

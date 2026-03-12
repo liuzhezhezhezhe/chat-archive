@@ -1,6 +1,6 @@
 import { listConversationMetas, upsertConversation, getConversationsByIds, getConversationsByRefs } from './storage.js';
 import { exportJson } from './exporters.js';
-import { createEmptyJob, getJob, saveJob, rebuildJobFromList, shouldPreserveJobProgress } from './job-state.js';
+import { createEmptyJob, getJob, saveJob, rebuildJobFromList, rebuildSelectedJobFromList, shouldPreserveJobProgress } from './job-state.js';
 import { appendDebugLog, getDebugLogs, clearDebugLogs } from './debug-log.js';
 import { getEffectiveCrawlPolicy, loadCrawlPolicy } from './crawl-policy.js';
 
@@ -163,6 +163,58 @@ function createRunControl(platform) {
 
 function buildConversationRefMap(job) {
   return new Map((job.discoveredConversationRefs || []).map((ref) => [ref.conversation_id, ref]));
+}
+
+function uniqueConversationRefs(refs) {
+  const map = new Map();
+  for (const ref of refs || []) {
+    if (!ref?.conversation_id) {
+      continue;
+    }
+    map.set(ref.conversation_id, {
+      ...map.get(ref.conversation_id),
+      ...ref,
+      title: ref.title || map.get(ref.conversation_id)?.title || ref.conversation_id
+    });
+  }
+  return Array.from(map.values());
+}
+
+function normalizeSelectedConversationRefs(platform, refs) {
+  return uniqueConversationRefs(
+    (Array.isArray(refs) ? refs : [])
+    .filter((ref) => ref?.conversation_id && (!platform || !ref.platform || ref.platform === platform))
+    .map((ref) => ({
+      platform: ref.platform || platform,
+      conversation_id: ref.conversation_id,
+      title: ref.title || ref.conversation_id
+    }))
+  )
+    .map((ref) => ({
+      conversation_id: ref.conversation_id,
+      title: ref.title || ref.conversation_id
+    }));
+}
+
+function getSelectedConversationRefsFromJob(job, platform) {
+  const selectedIds = Array.isArray(job?.selectedConversationIds) ? job.selectedConversationIds.filter(Boolean) : [];
+  if (!selectedIds.length) {
+    return [];
+  }
+
+  const discoveredMap = new Map(
+    (job?.discoveredConversationRefs || [])
+      .filter((ref) => !platform || !ref?.platform || ref.platform === platform)
+      .map((ref) => [ref.conversation_id, ref])
+  );
+
+  return selectedIds.map((conversationId) => {
+    const ref = discoveredMap.get(conversationId) || {};
+    return {
+      conversation_id: conversationId,
+      title: ref.title || conversationId
+    };
+  });
 }
 
 function clamp(value, min, max) {
@@ -359,16 +411,46 @@ async function finalizeAbortIfRequested(job, runControl, platform) {
   });
 }
 
-async function refreshJobQueue(tabId, platform) {
+async function refreshJobQueue(tabId, platform, requestedQueue = null) {
   const stored = (await getJob(platform)) || createEmptyJob(platform);
   const previous = shouldPreserveJobProgress(stored) ? stored : createEmptyJob(platform);
-  const list = await sendToTab(tabId, 'SCRAPE_LIST_FULL');
-  if (!list?.ok || !Array.isArray(list.conversations)) {
-    throw new Error('Failed to scrape the conversation list.');
+  const crawlScope = requestedQueue?.scope || stored.crawlScope || 'full';
+  const selectedConversationRefs = crawlScope === 'selected'
+    ? normalizeSelectedConversationRefs(
+      platform,
+      requestedQueue?.selectedConversationRefs?.length
+        ? requestedQueue.selectedConversationRefs
+        : getSelectedConversationRefsFromJob(stored, platform)
+    )
+    : [];
+
+  if (crawlScope === 'selected' && !selectedConversationRefs.length) {
+    throw new Error('No selected conversations were provided for update.');
   }
 
-  const nextJob = rebuildJobFromList(platform, previous, list.conversations);
+  let nextJob;
+  if (crawlScope === 'selected') {
+    if (requestedQueue?.matchedConversationRefs?.length) {
+      nextJob = rebuildSelectedJobFromList(platform, previous, requestedQueue.matchedConversationRefs, selectedConversationRefs);
+    } else {
+      const list = await sendToTab(tabId, 'SCRAPE_LIST_FULL');
+      if (!list?.ok || !Array.isArray(list.conversations)) {
+        throw new Error('Failed to scrape the conversation list.');
+      }
+
+      nextJob = rebuildSelectedJobFromList(platform, previous, list.conversations, selectedConversationRefs);
+    }
+  } else {
+    const list = await sendToTab(tabId, 'SCRAPE_LIST_FULL');
+    if (!list?.ok || !Array.isArray(list.conversations)) {
+      throw new Error('Failed to scrape the conversation list.');
+    }
+
+    nextJob = rebuildJobFromList(platform, previous, list.conversations);
+  }
+
   await logDebug('info', 'background', 'queue_refreshed', `Refreshed the ${platform} conversation queue.`, {
+    scope: crawlScope,
     total: nextJob.discoveredConversationRefs.length,
     pending: nextJob.pendingConversationIds.length,
     completed: nextJob.completedConversationIds.length
@@ -378,6 +460,66 @@ async function refreshJobQueue(tabId, platform) {
   nextJob.abortRequested = false;
   nextJob.targetTabId = typeof tabId === 'number' ? tabId : previous.targetTabId;
   return saveJob(nextJob);
+}
+
+async function analyzeSelectedConversations(tabId, platform, selectedConversationRefs) {
+  const normalizedSelections = uniqueConversationRefs(Array.isArray(selectedConversationRefs) ? selectedConversationRefs : [])
+    .filter((ref) => ref?.conversation_id)
+    .map((ref) => ({
+      platform: ref.platform || platform,
+      conversation_id: ref.conversation_id,
+      title: ref.title || ref.conversation_id
+    }));
+
+  const selectedOnPlatform = normalizedSelections.filter((ref) => ref.platform === platform);
+  const selectedOnOtherPlatforms = normalizedSelections.filter((ref) => ref.platform && ref.platform !== platform);
+
+  if (!selectedOnPlatform.length) {
+    return {
+      matchedConversationRefs: [],
+      selectionSummary: {
+        platform,
+        matchedOnCurrentPlatform: [],
+        selectedOnOtherPlatforms,
+        missingOnCurrentPlatform: []
+      }
+    };
+  }
+
+  const list = await sendToTab(tabId, 'SCRAPE_LIST_FULL');
+  if (!list?.ok || !Array.isArray(list.conversations)) {
+    throw new Error('Failed to scrape the conversation list.');
+  }
+
+  const listMap = new Map((list.conversations || []).map((ref) => [ref.conversation_id, ref]));
+  const matchedConversationRefs = [];
+  const missingOnCurrentPlatform = [];
+
+  for (const ref of selectedOnPlatform) {
+    const matched = listMap.get(ref.conversation_id);
+    if (matched) {
+      matchedConversationRefs.push({
+        conversation_id: matched.conversation_id,
+        title: matched.title || ref.title || matched.conversation_id
+      });
+    } else {
+      missingOnCurrentPlatform.push({
+        conversation_id: ref.conversation_id,
+        title: ref.title || ref.conversation_id,
+        platform: ref.platform || platform
+      });
+    }
+  }
+
+  return {
+    matchedConversationRefs,
+    selectionSummary: {
+      platform,
+      matchedOnCurrentPlatform: matchedConversationRefs,
+      selectedOnOtherPlatforms,
+      missingOnCurrentPlatform
+    }
+  };
 }
 
 async function autoPauseRun(job, runControl, policy, reason) {
@@ -487,14 +629,14 @@ async function resumeWaitingJob(platform) {
   }
 }
 
-async function runCrawl(tabId, platform) {
+async function runCrawl(tabId, platform, requestedQueue = null) {
   const runControl = createRunControl(platform);
   activeRuns.set(tabId, runControl);
   await logDebug('info', 'background', 'crawl_started', `Started crawling ${platform}.`, { tabId, platform });
 
   try {
     const policy = getEffectiveCrawlPolicy(await loadCrawlPolicy());
-    let job = await refreshJobQueue(tabId, platform);
+    let job = await refreshJobQueue(tabId, platform, requestedQueue);
     const cooldownSeconds = remainingCooldownSeconds(job);
     if (cooldownSeconds > 0) {
       throw new Error(`Crawling is on cooldown. Try again in ${formatCooldownMinutes(cooldownSeconds)} min.`);
@@ -838,10 +980,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         throw new Error('Could not detect the current platform.');
       }
 
+      const crawlScope = message?.scope === 'selected' ? 'selected' : 'full';
+      const rawSelectedConversationRefs = uniqueConversationRefs(message?.conversationRefs || []);
+
       const currentJob = (await getJob(platform)) || createEmptyJob(platform);
       const cooldownSeconds = remainingCooldownSeconds(currentJob);
       if (cooldownSeconds > 0) {
         throw new Error(`This platform is on cooldown. Try again in ${formatCooldownMinutes(cooldownSeconds)} min.`);
+      }
+
+      let selectedConversationRefs = [];
+      let selectionSummary = null;
+      let matchedConversationRefs = [];
+      if (crawlScope === 'selected') {
+        if (!rawSelectedConversationRefs.length) {
+          throw new Error('Select at least one conversation before updating.');
+        }
+
+        const analysis = await analyzeSelectedConversations(tabId, platform, rawSelectedConversationRefs);
+        selectedConversationRefs = analysis.selectionSummary.matchedOnCurrentPlatform;
+        matchedConversationRefs = analysis.matchedConversationRefs;
+        selectionSummary = analysis.selectionSummary;
+
+        if (!selectedConversationRefs.length) {
+          await logDebug('warn', 'background', 'selected_update_platform_mismatch', `No selected conversations belong to ${platform}.`, {
+            platform,
+            selectedOnOtherPlatforms: selectionSummary.selectedOnOtherPlatforms
+          });
+          return {
+            ok: false,
+            error: 'None of the selected conversations belong to the current platform.',
+            selectionSummary
+          };
+        }
       }
 
       if (!activeRuns.has(tabId)) {
@@ -851,6 +1022,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ...freshRunJob,
           platform,
           targetTabId: tabId,
+          crawlScope,
+          selectedConversationIds: selectedConversationRefs.map((ref) => ref.conversation_id),
+          discoveredConversationRefs: crawlScope === 'selected' ? selectedConversationRefs : [],
           status: 'running',
           running: true,
           abortRequested: false,
@@ -860,7 +1034,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           nextAllowedRunAt: 0,
           policyPauseReason: null
         });
-        void runCrawl(tabId, platform);
+        await logDebug('info', 'background', 'crawl_requested', `Received a ${crawlScope} crawl request for ${platform}.`, {
+          tabId,
+          platform,
+          scope: crawlScope,
+          selectedCount: selectedConversationRefs.length
+        });
+        void runCrawl(tabId, platform, crawlScope === 'selected'
+          ? {
+            scope: 'selected',
+            selectedConversationRefs,
+            matchedConversationRefs
+          }
+          : null);
       } else {
         await logDebug('info', 'background', 'crawl_resume_requested', `Ignored a duplicate start request because ${platform} is already running.`, {
           tabId,
@@ -869,7 +1055,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       const state = await getStatusForPlatform(platform);
-      return { ok: true, state };
+      return { ok: true, state, selectionSummary };
     }
 
     if (action === 'ABORT_CRAWL') {
