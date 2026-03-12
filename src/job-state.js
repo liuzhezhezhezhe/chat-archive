@@ -31,6 +31,7 @@ function mergeConversationRefs(existingRefs, nextRefs) {
 export function createEmptyJob(platform) {
   return {
     platform,
+    targetTabId: null,
     status: 'idle',
     running: false,
     abortRequested: false,
@@ -73,6 +74,7 @@ export async function saveJob(job) {
   const nextJob = {
     ...createEmptyJob(job.platform),
     ...job,
+    targetTabId: typeof job.targetTabId === 'number' ? job.targetTabId : null,
     updatedAt: nowSeconds(),
     done: (job.completedConversationIds || []).length,
     total: job.total || (job.discoveredConversationRefs || []).length,
@@ -111,4 +113,9 @@ export function rebuildJobFromList(platform, previousJob, freshRefs) {
     done: (base.completedConversationIds || []).length,
     lastError: null
   };
+}
+
+export function shouldPreserveJobProgress(job) {
+  const status = job?.status || 'idle';
+  return status === 'running' || status === 'waiting';
 }

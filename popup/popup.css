@@ -296,6 +296,8 @@ h2 {
 .detail-text {
   font-size: 11px;
   line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .section-heading.compact {

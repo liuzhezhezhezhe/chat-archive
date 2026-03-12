@@ -10,7 +10,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "unlimitedStorage", "activeTab", "tabs", "downloads"],
+  "permissions": ["storage", "unlimitedStorage", "activeTab", "tabs", "downloads", "alarms"],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",

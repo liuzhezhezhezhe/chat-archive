@@ -11,7 +11,7 @@ const STATUS_LABELS = {
   en: {
     idle: 'Idle',
     running: 'Running',
-    waiting: 'Waiting',
+    waiting: 'Auto Paused',
     aborting: 'Aborting',
     aborted: 'Aborted',
     completed: 'Completed',
@@ -20,7 +20,7 @@ const STATUS_LABELS = {
   zh: {
     idle: '空闲',
     running: '运行中',
-    waiting: '等待中',
+    waiting: '自动暂停中',
     aborting: '正在中止',
     aborted: '已中止',
     completed: '已完成',
@@ -60,6 +60,7 @@ const COPY = {
       pending: 'Pending',
       failed: 'Failed',
       autoResume: 'Auto resume',
+      pauseReason: 'Pause',
       cooldown: 'Cooldown',
       mode: 'Mode',
       error: 'Error',
@@ -205,6 +206,7 @@ const COPY = {
       pending: '待处理',
       failed: '失败',
       autoResume: '自动恢复',
+      pauseReason: '暂停',
       cooldown: '冷却',
       mode: '模式',
       error: '错误',
@@ -345,6 +347,7 @@ const EN_LOG_TEMPLATES = {
   queue_refreshed: (log) => `Refreshed the ${formatPlatformLabel('en', log?.data?.platform)} conversation queue.`,
   crawl_auto_pause: (log) => `Triggered an automatic pause for ${formatPlatformLabel('en', log?.data?.platform)}.`,
   crawl_auto_resume: (log) => `Automatic pause finished. Resuming ${formatPlatformLabel('en', log?.data?.platform)}.`,
+  crawl_auto_resume_failed: (log) => `Automatic resume failed for ${formatPlatformLabel('en', log?.data?.platform)}.`,
   crawl_policy_loaded: (log) => `Loaded the ${formatPolicyMode('en', log?.data?.mode)} crawl policy.`,
   crawl_pause_threshold: (log) => localizeLegacyMessage('en', log?.message || 'Reached a crawl threshold and paused.'),
   crawl_cycle_reseeded: (log) => `Reset thresholds for the next ${formatPlatformLabel('en', log?.data?.platform)} cycle.`,
@@ -374,6 +377,7 @@ const ZH_LOG_TEMPLATES = {
   queue_refreshed: (log) => `${formatPlatformLabel('zh', log?.data?.platform)}会话队列已刷新。`,
   crawl_auto_pause: (log) => `已为${formatPlatformLabel('zh', log?.data?.platform)}触发自动暂停。`,
   crawl_auto_resume: (log) => `自动暂停结束，继续${formatPlatformLabel('zh', log?.data?.platform)}抓取。`,
+  crawl_auto_resume_failed: (log) => `${formatPlatformLabel('zh', log?.data?.platform)}自动恢复失败。`,
   crawl_policy_loaded: (log) => `已加载${formatPolicyMode('zh', log?.data?.mode)}抓取策略。`,
   crawl_pause_threshold: (log) => localizeLegacyMessage('zh', log?.message || '已达到抓取阈值并暂停。'),
   crawl_cycle_reseeded: (log) => `已重置下一轮${formatPlatformLabel('zh', log?.data?.platform)}抓取阈值。`,
@@ -393,6 +397,25 @@ const ZH_LOG_TEMPLATES = {
 const ZH_ERROR_SUBSTRINGS = [
   ['Content script is unavailable. Refresh the page and try again.', '内容脚本不可用。请刷新页面后重试。'],
   ['This page is still running an outdated content script. Refresh the page and try again.', '当前页面仍在运行旧版内容脚本。请刷新页面后重试。'],
+  ['Failed to scrape the conversation list.', '抓取会话列表失败。'],
+  ['Could not detect the current platform.', '无法识别当前平台。'],
+  ['Target tab was not found.', '未找到目标标签页。'],
+  ['This platform is on cooldown. Try again in ', '当前平台正在冷却中，请在 '],
+  ['Crawling is on cooldown. Try again in ', '当前抓取任务正在冷却中，请在 '],
+  [' min.', ' 分钟后重试。'],
+  ['Reached the single-run batch limit', '已达到单轮批次上限'],
+  ['Reached the single-run time limit', '已达到单轮时长上限'],
+  ['Resume after ', '将于 '],
+  [' sec', ' 秒后自动继续'],
+  [' min', ' 分钟后自动继续'],
+  ['Automatic resume failed because the target tab is no longer available.', '自动恢复失败：目标标签页已不可用。'],
+  ['Automatic resume failed for ', '自动恢复失败：'],
+  ['Too many consecutive failures (', '连续失败次数过多（'],
+  ['). Cooling down for ', '），进入冷却，时长 '],
+  ['Failed to open conversation: ', '打开会话失败：'],
+  ['Failed to scrape conversation: ', '抓取会话失败：'],
+  ['Crawling was aborted during the automatic pause.', '任务已在自动暂停期间被中止。'],
+  ['Crawling was aborted.', '抓取任务已中止。'],
   ['Failed to start crawling.', '启动抓取失败。'],
   ['Failed to export JSON.', '导出 JSON 失败。'],
   ['Unsupported page', '不支持的页面'],
@@ -403,6 +426,25 @@ const ZH_ERROR_SUBSTRINGS = [
 const EN_ERROR_SUBSTRINGS = [
   ['内容脚本不可用。请刷新页面后重试。', 'Content script is unavailable. Refresh the page and try again.'],
   ['当前页面仍在运行旧版内容脚本。请刷新页面后重试。', 'This page is still running an outdated content script. Refresh the page and try again.'],
+  ['抓取会话列表失败。', 'Failed to scrape the conversation list.'],
+  ['无法识别当前平台。', 'Could not detect the current platform.'],
+  ['未找到目标标签页。', 'Target tab was not found.'],
+  ['当前平台正在冷却中，请在 ', 'This platform is on cooldown. Try again in '],
+  ['当前抓取任务正在冷却中，请在 ', 'Crawling is on cooldown. Try again in '],
+  [' 分钟后重试。', ' min.'],
+  ['已达到单轮批次上限', 'Reached the single-run batch limit'],
+  ['已达到单轮时长上限', 'Reached the single-run time limit'],
+  ['将于 ', 'Resume after '],
+  [' 秒后自动继续', ' sec'],
+  [' 分钟后自动继续', ' min'],
+  ['自动恢复失败：目标标签页已不可用。', 'Automatic resume failed because the target tab is no longer available.'],
+  ['自动恢复失败：', 'Automatic resume failed for '],
+  ['连续失败次数过多（', 'Too many consecutive failures ('],
+  ['），进入冷却，时长 ', '). Cooling down for '],
+  ['打开会话失败：', 'Failed to open conversation: '],
+  ['抓取会话失败：', 'Failed to scrape conversation: '],
+  ['任务已在自动暂停期间被中止。', 'Crawling was aborted during the automatic pause.'],
+  ['抓取任务已中止。', 'Crawling was aborted.'],
   ['启动抓取失败。', 'Failed to start crawling.'],
   ['导出 JSON 失败。', 'Failed to export JSON.'],
   ['不支持的页面', 'Unsupported page'],
@@ -421,6 +463,7 @@ const EN_LOG_SUBSTRINGS = [
   ['会话队列已刷新', 'Conversation queue refreshed'],
   ['内容脚本运行时检查通过', 'Content runtime check passed'],
   ['自动暂停结束', 'Automatic pause finished'],
+  ['自动恢复失败', 'Automatic resume failed'],
   ['触发自动暂停', 'Triggered automatic pause'],
   ['进入冷却', 'Entered cooldown'],
   ['抓取失败', 'Crawling failed'],
@@ -439,6 +482,7 @@ const ZH_LOG_SUBSTRINGS = [
   ['conversation list', '会话列表'],
   ['Content runtime check passed', '内容脚本运行时检查通过'],
   ['Automatic pause finished', '自动暂停结束'],
+  ['Automatic resume failed', '自动恢复失败'],
   ['Triggered automatic pause', '触发自动暂停'],
   ['Failed to open conversation', '打开会话失败'],
   ['Failed to scrape conversation', '抓取会话失败'],
@@ -580,22 +624,10 @@ export function localizeError(language, message) {
   }
 
   if (normalizeLanguage(language) === 'zh') {
-    for (const [needle, translated] of ZH_ERROR_SUBSTRINGS) {
-      if (text.includes(needle)) {
-        return text.replace(needle, translated);
-      }
-    }
-
-    return text;
+    return replaceSubstrings(text, ZH_ERROR_SUBSTRINGS);
   }
 
-  for (const [needle, translated] of EN_ERROR_SUBSTRINGS) {
-    if (text.includes(needle)) {
-      return text.replace(needle, translated);
-    }
-  }
-
-  return text;
+  return replaceSubstrings(text, EN_ERROR_SUBSTRINGS);
 }
 
 export function localizeLog(language, log) {

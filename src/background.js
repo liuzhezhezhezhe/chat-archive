@@ -1,11 +1,15 @@
 import { listConversationMetas, upsertConversation, getConversationsByIds, getConversationsByRefs } from './storage.js';
 import { exportJson } from './exporters.js';
-import { createEmptyJob, getJob, saveJob, rebuildJobFromList } from './job-state.js';
+import { createEmptyJob, getJob, saveJob, rebuildJobFromList, shouldPreserveJobProgress } from './job-state.js';
 import { appendDebugLog, getDebugLogs, clearDebugLogs } from './debug-log.js';
 import { getEffectiveCrawlPolicy, loadCrawlPolicy } from './crawl-policy.js';
 
 const activeRuns = new Map();
 const EXPECTED_CONTENT_RUNTIME_VERSION = '2026-03-06-chatgpt-runtime-3';
+
+function getResumeAlarmName(platform) {
+  return `crawl-resume::${platform}`;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -100,6 +104,17 @@ async function savePolicyPausedJob(job, status, lastError, extra = {}) {
     lastError,
     ...extra
   });
+}
+
+async function scheduleResumeAlarm(platform, resumeAtSeconds) {
+  await chrome.alarms.clear(getResumeAlarmName(platform));
+  await chrome.alarms.create(getResumeAlarmName(platform), {
+    when: Math.max(Date.now() + 1000, resumeAtSeconds * 1000)
+  });
+}
+
+async function clearResumeAlarm(platform) {
+  await chrome.alarms.clear(getResumeAlarmName(platform));
 }
 
 async function sleepInterruptibly(totalMs, runControl, stepMs = 1000) {
@@ -346,9 +361,7 @@ async function finalizeAbortIfRequested(job, runControl, platform) {
 
 async function refreshJobQueue(tabId, platform) {
   const stored = (await getJob(platform)) || createEmptyJob(platform);
-  const previous = stored.status === 'completed' || stored.status === 'idle'
-    ? createEmptyJob(platform)
-    : stored;
+  const previous = shouldPreserveJobProgress(stored) ? stored : createEmptyJob(platform);
   const list = await sendToTab(tabId, 'SCRAPE_LIST_FULL');
   if (!list?.ok || !Array.isArray(list.conversations)) {
     throw new Error('Failed to scrape the conversation list.');
@@ -363,6 +376,7 @@ async function refreshJobQueue(tabId, platform) {
   nextJob.status = nextJob.pendingConversationIds.length ? 'queued' : 'completed';
   nextJob.running = false;
   nextJob.abortRequested = false;
+  nextJob.targetTabId = typeof tabId === 'number' ? tabId : previous.targetTabId;
   return saveJob(nextJob);
 }
 
@@ -379,13 +393,15 @@ async function autoPauseRun(job, runControl, policy, reason) {
   const pausedJob = await saveJob({
     ...job,
     status: 'waiting',
-    running: true,
+    running: false,
     abortRequested: false,
     currentConversationId: null,
     nextAllowedRunAt: resumeAt,
     policyPauseReason: reason,
     lastError: `${reasonText}. Resume after ${formatWaitSeconds(Math.ceil(pauseMs / 1000))}.`
   });
+
+  await scheduleResumeAlarm(job.platform, resumeAt);
 
   await logDebug('info', 'background', 'crawl_auto_pause', `Triggered an automatic pause for ${job.platform}.`, {
     platform: job.platform,
@@ -394,44 +410,81 @@ async function autoPauseRun(job, runControl, policy, reason) {
     resumeAt
   });
 
-  const completed = await sleepInterruptibly(pauseMs, runControl);
-  if (!completed) {
-    const abortedJob = await saveJob({
-      ...pausedJob,
-      status: 'aborted',
+  return {
+    paused: true,
+    job: pausedJob
+  };
+}
+
+async function resumeWaitingJob(platform) {
+  const job = (await getJob(platform)) || createEmptyJob(platform);
+  if (job.status !== 'waiting') {
+    await clearResumeAlarm(platform);
+    return;
+  }
+
+  if (remainingCooldownSeconds(job) > 0) {
+    await scheduleResumeAlarm(platform, job.nextAllowedRunAt);
+    return;
+  }
+
+  const tabId = job.targetTabId;
+  if (typeof tabId !== 'number') {
+    await clearResumeAlarm(platform);
+    await saveJob({
+      ...job,
+      status: 'error',
       running: false,
-      abortRequested: true,
+      nextAllowedRunAt: 0,
+      policyPauseReason: null,
+      lastError: 'Automatic resume failed because the target tab is no longer available.'
+    });
+    return;
+  }
+
+  if (activeRuns.has(tabId)) {
+    return;
+  }
+
+  try {
+    await chrome.tabs.get(tabId);
+    const runtimeInfo = await ensureFreshContentRuntime(tabId);
+    await logDebug('info', 'background', 'content_runtime_ready', 'Content runtime check passed for auto resume.', runtimeInfo);
+
+    await clearResumeAlarm(platform);
+    await saveJob({
+      ...job,
+      status: 'running',
+      running: true,
+      abortRequested: false,
       currentConversationId: null,
       nextAllowedRunAt: 0,
       policyPauseReason: null,
-      lastError: 'Crawling was aborted during the automatic pause.'
+      lastError: null
     });
-    return {
-      aborted: true,
-      job: abortedJob
-    };
+
+    await logDebug('info', 'background', 'crawl_auto_resume', `Automatic pause finished. Resuming ${platform}.`, {
+      platform,
+      tabId
+    });
+
+    void runCrawl(tabId, platform);
+  } catch (error) {
+    await clearResumeAlarm(platform);
+    await saveJob({
+      ...job,
+      status: 'error',
+      running: false,
+      nextAllowedRunAt: 0,
+      policyPauseReason: null,
+      lastError: error instanceof Error ? error.message : String(error)
+    });
+    await logDebug('error', 'background', 'crawl_auto_resume_failed', `Automatic resume failed for ${platform}.`, {
+      platform,
+      tabId,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
-
-  const resumedJob = await saveJob({
-    ...pausedJob,
-    status: 'running',
-    running: true,
-    abortRequested: false,
-    currentConversationId: null,
-    nextAllowedRunAt: 0,
-    policyPauseReason: null,
-    lastError: null
-  });
-
-  await logDebug('info', 'background', 'crawl_auto_resume', `Automatic pause finished. Resuming ${job.platform}.`, {
-    platform: job.platform,
-    reason
-  });
-
-  return {
-    aborted: false,
-    job: resumedJob
-  };
 }
 
 async function runCrawl(tabId, platform) {
@@ -488,6 +541,9 @@ async function runCrawl(tabId, platform) {
           configuredBaseLimit: policy.maxConversationsPerRunValue
         });
         const pauseResult = await autoPauseRun(job, runControl, policy, 'conversation_limit');
+        if (pauseResult.paused) {
+          return pauseResult.job;
+        }
         if (pauseResult.aborted) {
           return pauseResult.job;
         }
@@ -513,6 +569,9 @@ async function runCrawl(tabId, platform) {
           configuredBaseLimitMinutes: policy.maxRunMinutesValue
         });
         const pauseResult = await autoPauseRun(job, runControl, policy, 'time_limit');
+        if (pauseResult.paused) {
+          return pauseResult.job;
+        }
         if (pauseResult.aborted) {
           return pauseResult.job;
         }
@@ -786,9 +845,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (!activeRuns.has(tabId)) {
+        const freshRunJob = createEmptyJob(platform);
+        await clearResumeAlarm(platform);
         await saveJob({
-          ...currentJob,
+          ...freshRunJob,
           platform,
+          targetTabId: tabId,
           status: 'running',
           running: true,
           abortRequested: false,
@@ -825,6 +887,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
 
       if (platform) {
+        await clearResumeAlarm(platform);
         const current = (await getJob(platform)) || createEmptyJob(platform);
         const nextStatus = hasActiveRun ? 'aborting' : 'aborted';
         await saveJob({
@@ -910,4 +973,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch((error) => sendResponse({ ok: false, error: error.message || String(error) }));
 
   return true;
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  const prefix = 'crawl-resume::';
+  if (!alarm?.name?.startsWith(prefix)) {
+    return;
+  }
+
+  const platform = alarm.name.slice(prefix.length);
+  void resumeWaitingJob(platform);
 });

@@ -148,28 +148,38 @@ function renderLogs(logs) {
 function buildDetailText(state) {
   const pending = Math.max(0, (state?.pendingConversationIds || []).length);
   const failed = (state?.failedConversationIds || []).length;
-  const parts = [
+  const summaryParts = [
     `${t(currentLanguage, 'popup.pending')}: ${pending}`,
     `${t(currentLanguage, 'popup.failed')}: ${failed}`
   ];
+
+  const secondaryParts = [];
 
   if (state?.cooldownRemainingSeconds > 0) {
     const minutes = formatMinutes(currentLanguage, Math.ceil(state.cooldownRemainingSeconds / 60));
     const label = state?.status === 'waiting'
       ? t(currentLanguage, 'popup.autoResume')
       : t(currentLanguage, 'popup.cooldown');
-    parts.push(`${label}: ${minutes}`);
+    secondaryParts.push(`${label}: ${minutes}`);
   }
 
   if (state?.crawlPolicyMode) {
-    parts.push(`${t(currentLanguage, 'popup.mode')}: ${formatPolicyMode(currentLanguage, state.crawlPolicyMode)}`);
+    summaryParts.push(`${t(currentLanguage, 'popup.mode')}: ${formatPolicyMode(currentLanguage, state.crawlPolicyMode)}`);
+  }
+
+  const lines = [summaryParts.join(' | ')];
+  if (secondaryParts.length) {
+    lines.push(secondaryParts.join(' | '));
   }
 
   if (state?.lastError) {
-    parts.push(`${t(currentLanguage, 'popup.error')}: ${trunc(localizeError(currentLanguage, state.lastError), 42)}`);
+    const detailLabel = state?.status === 'waiting'
+      ? t(currentLanguage, 'popup.pauseReason')
+      : t(currentLanguage, 'popup.error');
+    lines.push(`${detailLabel}: ${localizeError(currentLanguage, state.lastError)}`);
   }
 
-  return parts.join(' | ');
+  return lines.join('\n');
 }
 
 function updateStatus(state) {
