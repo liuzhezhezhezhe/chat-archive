@@ -193,22 +193,122 @@ export async function getAllConversations() {
   return store[CONVERSATIONS_KEY] || {};
 }
 
+function getSearchTokens(query = '') {
+  const normalizedQuery = String(query || '').trim().toLowerCase();
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return normalizedQuery.split(/\s+/).filter(Boolean);
+}
+
+function matchesAllTokens(sourceText, tokens) {
+  if (!tokens.length) {
+    return true;
+  }
+
+  const normalizedSource = String(sourceText || '').toLowerCase();
+  return tokens.every((token) => normalizedSource.includes(token));
+}
+
+function buildContentPreview(searchText, tokens, radius = 34) {
+  const sourceText = String(searchText || '').replace(/\s+/g, ' ').trim();
+  if (!sourceText || !tokens.length) {
+    return '';
+  }
+
+  const normalizedSource = sourceText.toLowerCase();
+  const matchedToken = tokens.find((token) => normalizedSource.includes(token)) || '';
+  if (!matchedToken) {
+    return '';
+  }
+
+  const matchIndex = normalizedSource.indexOf(matchedToken);
+  const start = Math.max(0, matchIndex - radius);
+  const end = Math.min(sourceText.length, matchIndex + matchedToken.length + radius);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < sourceText.length ? '...' : '';
+  return `${prefix}${sourceText.slice(start, end)}${suffix}`;
+}
+
+function buildConversationMeta(record) {
+  const currentRevision = getCurrentRevision(record);
+  const revisionMessageCount = Number(currentRevision?.message_count)
+    || (Array.isArray(currentRevision?.messages) ? currentRevision.messages.length : 0);
+  const baseMessageCount = Number(record?.message_count)
+    || (Array.isArray(record?.messages) ? record.messages.length : 0);
+
+  return {
+    platform: record?.platform,
+    conversation_id: record?.conversation_id,
+    title: record?.title || record?.conversation_id,
+    updated_at: record?.updated_at || 0,
+    message_count: revisionMessageCount || baseMessageCount,
+    revision_count: Array.isArray(record?.revisions) ? record.revisions.length : 0,
+    current_revision_id: record?.current_revision_id || currentRevision?.revision_id || null,
+    last_checked_at: record?.last_checked_at || 0,
+    last_changed_at: record?.last_changed_at || record?.updated_at || 0
+  };
+}
+
 export async function listConversationMetas(platform) {
   const all = await getAllConversations();
   return Object.values(all)
     .filter((item) => !platform || item.platform === platform)
-    .map((item) => ({
-      platform: item.platform,
-      conversation_id: item.conversation_id,
-      title: item.title || item.conversation_id,
-      updated_at: item.updated_at || 0,
-      message_count: Array.isArray(item.messages) ? item.messages.length : 0,
-      revision_count: Array.isArray(item.revisions) ? item.revisions.length : 0,
-      current_revision_id: item.current_revision_id || null,
-      last_checked_at: item.last_checked_at || 0,
-      last_changed_at: item.last_changed_at || item.updated_at || 0
-    }))
+    .map((item) => buildConversationMeta(item))
     .sort((a, b) => b.updated_at - a.updated_at);
+}
+
+export async function searchConversationMetas(platform, query) {
+  const tokens = getSearchTokens(query);
+  if (!tokens.length) {
+    const conversations = await listConversationMetas(platform);
+    return {
+      conversations,
+      totalCount: conversations.length
+    };
+  }
+
+  const all = await getAllConversations();
+  const searched = await Promise.all(Object.values(all)
+    .filter((item) => !platform || item.platform === platform)
+    .map(async (item) => {
+      const normalized = await migrateConversationRecord(item, item.platform, item.conversation_id, item.title || item.conversation_id);
+      const currentRevision = getCurrentRevision(normalized);
+      const activeMessages = currentRevision?.messages || normalized.messages || [];
+      const fallbackRevisionMessages = Array.isArray(normalized.revisions)
+        ? normalized.revisions.flatMap((revision) => Array.isArray(revision?.messages) ? revision.messages : [])
+        : [];
+      const searchableMessages = activeMessages.length ? activeMessages : fallbackRevisionMessages;
+      const titleText = [
+        normalized.title || normalized.conversation_id,
+        normalized.conversation_id,
+        normalized.platform || ''
+      ].join('\n');
+      const contentText = Array.isArray(searchableMessages)
+        ? searchableMessages
+          .map((message) => String(message?.content || '').trim())
+          .filter(Boolean)
+          .join('\n')
+        : '';
+      const titleMatches = matchesAllTokens(titleText, tokens);
+      const contentMatches = matchesAllTokens(contentText, tokens);
+
+      if (!titleMatches && !contentMatches) {
+        return null;
+      }
+
+      return {
+        ...buildConversationMeta(normalized),
+        content_match: !titleMatches && contentMatches,
+        content_preview: !titleMatches && contentMatches ? buildContentPreview(contentText, tokens) : ''
+      };
+    }));
+
+  return {
+    conversations: searched.filter(Boolean).sort((a, b) => b.updated_at - a.updated_at),
+    totalCount: Object.values(all).filter((item) => !platform || item.platform === platform).length
+  };
 }
 
 export async function upsertConversation(conversation) {

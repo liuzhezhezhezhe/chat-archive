@@ -25,8 +25,31 @@ let currentPlatform = null;
 let currentState = null;
 let currentLogs = [];
 let currentConversations = [];
+let currentConversationTotalCount = 0;
+let currentConversationSearchQuery = '';
 let pinnedDetailMessage = null;
 let pinnedStatusValue = null;
+
+function getSearchTokens(query = currentConversationSearchQuery) {
+  const normalizedQuery = String(query || '').trim().toLowerCase();
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return normalizedQuery.split(/\s+/).filter(Boolean);
+}
+
+function updateConversationSearchCount(visibleCount, totalCount) {
+  document.getElementById('conversationSearchCount').textContent = t(currentLanguage, 'popup.searchCount', {
+    visible: String(visibleCount),
+    total: String(totalCount)
+  });
+}
+
+function syncSearchControls() {
+  const hasQuery = Boolean(currentConversationSearchQuery.trim());
+  document.getElementById('clearSearchBtn').disabled = !hasQuery;
+}
 
 function conversationSelectionKey(platform, conversationId) {
   return `${platform || 'unknown'}::${conversationId || 'unknown'}`;
@@ -37,6 +60,106 @@ function trunc(text, n = 42) {
     return '';
   }
   return text.length <= n ? text : `${text.slice(0, n - 1)}...`;
+}
+
+function buildContentPreview(searchText, query = currentConversationSearchQuery, radius = 34) {
+  const sourceText = String(searchText || '').replace(/\s+/g, ' ').trim();
+  const tokens = getSearchTokens(query);
+  if (!sourceText || !tokens.length) {
+    return '';
+  }
+
+  const normalizedSource = sourceText.toLowerCase();
+  const matchedToken = tokens.find((token) => normalizedSource.includes(token)) || '';
+  if (!matchedToken) {
+    return '';
+  }
+
+  const matchIndex = normalizedSource.indexOf(matchedToken);
+  const start = Math.max(0, matchIndex - radius);
+  const end = Math.min(sourceText.length, matchIndex + matchedToken.length + radius);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < sourceText.length ? '...' : '';
+  return `${prefix}${sourceText.slice(start, end)}${suffix}`;
+}
+
+function appendHighlightedText(root, text, query) {
+  const sourceText = String(text || '');
+  const tokens = getSearchTokens(query);
+
+  if (!tokens.length) {
+    root.textContent = sourceText;
+    return;
+  }
+
+  const normalizedSource = sourceText.toLowerCase();
+  const matchedToken = tokens.find((token) => normalizedSource.includes(token)) || '';
+  const matchIndex = matchedToken ? normalizedSource.indexOf(matchedToken) : -1;
+  if (matchIndex === -1) {
+    root.textContent = sourceText;
+    return;
+  }
+
+  const before = sourceText.slice(0, matchIndex);
+  const matched = sourceText.slice(matchIndex, matchIndex + matchedToken.length);
+  const after = sourceText.slice(matchIndex + matchedToken.length);
+
+  root.textContent = '';
+  if (before) {
+    root.append(document.createTextNode(before));
+  }
+
+  const mark = document.createElement('mark');
+  mark.className = 'match-highlight';
+  mark.textContent = matched;
+  root.append(mark);
+
+  if (after) {
+    root.append(document.createTextNode(after));
+  }
+}
+
+function renderConversationLabel(label, conversation) {
+  const titleText = trunc(conversation.title || conversation.conversation_id);
+  const titleMatches = getSearchTokens().length
+    && String(titleText).toLowerCase().includes(getSearchTokens()[0]);
+
+  label.textContent = '';
+  label.className = 'conversation-label';
+
+  const prefix = document.createElement('span');
+  prefix.textContent = `[${formatPlatformLabel(currentLanguage, conversation.platform)}] `;
+
+  const title = document.createElement('span');
+  title.className = 'conversation-title';
+  if (titleMatches) {
+    appendHighlightedText(title, titleText, currentConversationSearchQuery);
+  } else {
+    title.textContent = titleText;
+  }
+
+  const suffix = document.createElement('span');
+  suffix.textContent = ` (${conversation.message_count})`;
+
+  const headline = document.createElement('span');
+  headline.className = 'conversation-headline';
+  headline.append(prefix, title, suffix);
+  label.append(headline);
+
+  if (conversation.content_match) {
+    const hint = document.createElement('span');
+    hint.className = 'conversation-match-hint';
+    const hintLabel = document.createElement('span');
+    hintLabel.className = 'conversation-match-label';
+    hintLabel.textContent = `${t(currentLanguage, 'popup.contentMatch')}: `;
+
+    const hintPreview = document.createElement('span');
+    hintPreview.className = 'conversation-match-preview';
+  appendHighlightedText(hintPreview, conversation.content_preview || buildContentPreview(''), currentConversationSearchQuery);
+
+    hint.append(hintLabel, hintPreview);
+    label.append(hint);
+  }
 }
 
 async function send(action, payload = {}) {
@@ -91,13 +214,19 @@ function setButtonsEnabled(platformSupported) {
   document.getElementById('exportJsonBtn').disabled = false;
 }
 
-function renderConversationList(conversations) {
+function renderConversationList(conversations, totalCount = conversations?.length || 0) {
   const root = document.getElementById('conversationList');
   root.innerHTML = '';
   currentConversations = conversations || [];
+  currentConversationTotalCount = totalCount;
+
+  updateConversationSearchCount(currentConversations.length, currentConversationTotalCount);
+  syncSearchControls();
 
   if (!currentConversations.length) {
-    root.textContent = t(currentLanguage, 'popup.noConversations');
+    root.textContent = getSearchTokens().length
+      ? t(currentLanguage, 'popup.noSearchResults')
+      : t(currentLanguage, 'popup.noConversations');
     return;
   }
 
@@ -114,7 +243,7 @@ function renderConversationList(conversations) {
     checkbox.checked = selectedConversationKeys.has(checkbox.value);
 
     const label = document.createElement('label');
-    label.textContent = `[${formatPlatformLabel(currentLanguage, conv.platform)}] ${trunc(conv.title || conv.conversation_id)} (${conv.message_count})`;
+    renderConversationLabel(label, conv);
 
     row.appendChild(checkbox);
     row.appendChild(label);
@@ -289,11 +418,16 @@ function applyStaticCopy() {
   document.getElementById('abortBtn').textContent = t(currentLanguage, 'popup.abort');
   document.getElementById('exportJsonBtn').textContent = t(currentLanguage, 'popup.exportJson');
   document.getElementById('toggleAllBtn').textContent = t(currentLanguage, 'popup.toggleAll');
+  document.getElementById('conversationSearchLabel').textContent = t(currentLanguage, 'popup.searchLabel');
+  document.getElementById('conversationSearchInput').placeholder = t(currentLanguage, 'popup.searchPlaceholder');
+  document.getElementById('clearSearchBtn').textContent = t(currentLanguage, 'popup.clearSearch');
   document.getElementById('refreshLogsBtn').textContent = t(currentLanguage, 'popup.refresh');
   document.getElementById('clearLogsBtn').textContent = t(currentLanguage, 'popup.clear');
   document.getElementById('complianceNoticeTitle').textContent = t(currentLanguage, 'popup.complianceTitle');
   document.getElementById('complianceNoticeBody').textContent = t(currentLanguage, 'popup.complianceBody');
   document.getElementById('languageToggleBtn').textContent = getLanguageToggleLabel(currentLanguage);
+  updateConversationSearchCount(currentConversations.length, currentConversationTotalCount);
+  syncSearchControls();
 }
 
 function rerender() {
@@ -307,14 +441,19 @@ function rerender() {
 }
 
 async function refresh(tabId, platform) {
+  const activeQuery = currentConversationSearchQuery;
   const statusRes = await send('GET_STATUS', { tabId, platform });
   if (statusRes?.ok) {
     updateStatus(statusRes.state);
   }
 
-  const listRes = await send('LIST_CONVERSATIONS', { platform: null });
+  const listAction = getSearchTokens(activeQuery).length ? 'SEARCH_CONVERSATIONS' : 'LIST_CONVERSATIONS';
+  const listRes = await send(listAction, { platform: null, query: activeQuery });
   if (listRes?.ok) {
-    renderConversationList(listRes.conversations || []);
+    if (activeQuery !== currentConversationSearchQuery) {
+      return;
+    }
+    renderConversationList(listRes.conversations || [], listRes.totalCount || 0);
   }
 
   const logsRes = await send('GET_DEBUG_LOGS');
@@ -350,6 +489,25 @@ async function boot() {
     } else {
       selectedConversationKeys.delete(target.value);
     }
+  });
+
+  document.getElementById('conversationSearchInput').addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+    currentConversationSearchQuery = target.value || '';
+    void refresh(tabId, currentPlatform);
+  });
+
+  document.getElementById('clearSearchBtn').addEventListener('click', () => {
+    currentConversationSearchQuery = '';
+    const input = document.getElementById('conversationSearchInput');
+    if (input instanceof HTMLInputElement) {
+      input.value = '';
+      input.focus();
+    }
+    void refresh(tabId, currentPlatform);
   });
 
   document.getElementById('startBtn').addEventListener('click', async () => {

@@ -72,6 +72,16 @@
         </div>
         <button id="toggleAllBtn" class="tiny secondary">Toggle All</button>
       </div>
+      <div class="search-toolbar">
+        <label class="search-field" for="conversationSearchInput">
+          <span id="conversationSearchLabel" class="sr-only">Search conversations</span>
+          <input id="conversationSearchInput" type="search" autocomplete="off" spellcheck="false" />
+        </label>
+        <button id="clearSearchBtn" class="tiny ghost">Clear</button>
+      </div>
+      <div class="search-meta">
+        <span id="conversationSearchCount">0 / 0</span>
+      </div>
       <div id="conversationList" class="list conversation-list"></div>
     </section>
 

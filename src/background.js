@@ -1,4 +1,4 @@
-import { listConversationMetas, upsertConversation, getConversationsByIds, getConversationsByRefs } from './storage.js';
+import { listConversationMetas, searchConversationMetas, upsertConversation, getConversationsByIds, getConversationsByRefs } from './storage.js';
 import { exportJson } from './exporters.js';
 import { createEmptyJob, getJob, saveJob, rebuildJobFromList, rebuildSelectedJobFromList, shouldPreserveJobProgress } from './job-state.js';
 import { appendDebugLog, getDebugLogs, clearDebugLogs } from './debug-log.js';
@@ -1112,7 +1112,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (action === 'LIST_CONVERSATIONS') {
       const platform = message?.platform || null;
       const conversations = await listConversationMetas(platform);
-      return { ok: true, conversations };
+      return { ok: true, conversations, totalCount: conversations.length };
+    }
+
+    if (action === 'SEARCH_CONVERSATIONS') {
+      const platform = message?.platform || null;
+      const query = message?.query || '';
+      const result = await searchConversationMetas(platform, query);
+      return { ok: true, conversations: result.conversations, totalCount: result.totalCount };
     }
 
     if (action === 'EXPORT_JSON') {
